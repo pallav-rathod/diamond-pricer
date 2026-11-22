@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Predict Diamond Price</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;700;900&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: #070b14;
+      color: #e8ecf4;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    .bg-glow { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+    .bg-glow::before, .bg-glow::after {
+      content: ''; position: absolute; border-radius: 50%; filter: blur(120px); opacity: .3;
+    }
+    .bg-glow::before {
+      width: 50vw; height: 50vw; top: -18vw; right: -12vw;
+      background: radial-gradient(circle, #38bdf8, transparent 70%);
+      animation: drift 20s ease-in-out infinite alternate;
+    }
+    .bg-glow::after {
+      width: 40vw; height: 40vw; bottom: -14vw; left: -8vw;
+      background: radial-gradient(circle, #818cf8, transparent 70%);
+      animation: drift 24s ease-in-out infinite alternate-reverse;
+    }
+    @keyframes drift { from { transform: translate(0,0) scale(1);} to { transform: translate(5vw,4vh) scale(1.12);} }
+
+    .nav {
+      position: relative; z-index: 2;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 22px 6vw;
+    }
+    .logo { font-family: 'Playfair Display', serif; font-size: 1.25rem; font-weight: 700; text-decoration: none; color: #e8ecf4; }
+    .logo span { color: #7dd3fc; }
+    .nav a.back {
+      text-decoration: none; color: #9aa5bd; font-size: .88rem; font-weight: 500;
+      border: 1px solid rgba(255,255,255,.12); padding: 9px 20px; border-radius: 999px;
+      transition: color .2s, border-color .2s;
+    }
+    .nav a.back:hover { color: #e8ecf4; border-color: rgba(125,211,252,.5); }
+
+    .page { position: relative; z-index: 1; max-width: 1060px; margin: 0 auto; padding: 4vh 24px 8vh; }
+    .page-head { text-align: center; margin-bottom: 44px; }
+    .page-head .badge {
+      display: inline-block; font-size: .75rem; letter-spacing: 2px; text-transform: uppercase;
+      color: #7dd3fc; border: 1px solid rgba(125,211,252,.3);
+      padding: 6px 16px; border-radius: 999px; margin-bottom: 18px;
+      background: rgba(125,211,252,.06);
+    }
+    .page-head h1 { font-family: 'Playfair Display', serif; font-size: clamp(2rem, 5vw, 3rem); font-weight: 900; }
+    .page-head p { color: #9aa5bd; margin-top: 10px; font-size: .95rem; }
+
+    .layout { display: grid; grid-template-columns: 1.5fr 1fr; gap: 28px; align-items: start; }
+    @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+
+    .panel {
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.09);
+      border-radius: 22px;
+      padding: 34px;
+      backdrop-filter: blur(10px);
+    }
+    .panel-title {
+      font-size: .78rem; letter-spacing: 2px; text-transform: uppercase;
+      color: #7dd3fc; margin-bottom: 26px; font-weight: 600;
+    }
+
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 20px; }
+    .grid .full { grid-column: 1 / -1; }
+    @media (max-width: 560px) { .grid { grid-template-columns: 1fr; } }
+
+    label { display: block; font-size: .82rem; color: #9aa5bd; margin-bottom: 8px; font-weight: 500; }
+    label b { color: #7dd3fc; font-weight: 600; }
+
+    input[type="number"], select {
+      width: 100%; padding: 12px 14px; font-size: .95rem; font-family: inherit;
+      color: #e8ecf4; background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.12); border-radius: 12px;
+      outline: none; transition: border-color .2s, box-shadow .2s;
+      appearance: none; -webkit-appearance: none;
+    }
+    input[type="number"]:focus, select:focus {
+      border-color: #7dd3fc; box-shadow: 0 0 0 3px rgba(125,211,252,.15);
+    }
+    input[type="number"]::placeholder { color: #5b6579; }
+    /* hide number spinners */
+    input[type="number"]::-webkit-outer-spin-button,
+    input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type="number"] { -moz-appearance: textfield; }
+
+    select {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%237dd3fc' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 14px center;
+      cursor: pointer;
+    }
+    select option { background: #0d1322; color: #e8ecf4; }
+
+    /* carat slider */
+    .carat-wrap { display: flex; align-items: center; gap: 14px; }
+    .carat-wrap input[type="range"] {
+      flex: 1; -webkit-appearance: none; appearance: none; height: 6px; border-radius: 3px;
+      background: linear-gradient(90deg, #38bdf8 var(--fill, 20%), rgba(255,255,255,.12) var(--fill, 20%));
+      outline: none; cursor: pointer;
+    }
+    .carat-wrap input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%;
+      background: #fff; border: 3px solid #38bdf8;
+      box-shadow: 0 2px 10px rgba(56,189,248,.5); cursor: grab;
+    }
+    .carat-wrap input[type="range"]::-moz-range-thumb {
+      width: 20px; height: 20px; border-radius: 50%;
+      background: #fff; border: 3px solid #38bdf8; cursor: grab;
+    }
+    .carat-num { width: 82px; text-align: center; }
+
+    .actions { display: flex; gap: 14px; margin-top: 28px; }
+    .btn {
+      flex: 1; padding: 15px; border: none; border-radius: 14px; font-size: .95rem;
+      font-weight: 600; font-family: inherit; cursor: pointer;
+      transition: transform .2s, box-shadow .2s, opacity .2s;
+    }
+    .btn:active { transform: scale(.98); }
+    .btn-predict {
+      color: #070b14;
+      background: linear-gradient(135deg, #7dd3fc, #a5b4fc);
+      box-shadow: 0 10px 30px rgba(125,211,252,.3);
+    }
+    .btn-predict:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 14px 40px rgba(125,211,252,.45); }
+    .btn-reset {
+      flex: 0 0 auto; padding: 15px 24px; color: #9aa5bd;
+      background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12);
+    }
+    .btn-reset:hover { color: #e8ecf4; border-color: rgba(255,255,255,.25); }
+    .btn:disabled { opacity: .6; cursor: wait; }
+
+    /* result panel */
+    .result {
+      position: sticky; top: 24px;
+      background: linear-gradient(160deg, rgba(125,211,252,.12), rgba(129,140,248,.08));
+      border: 1px solid rgba(125,211,252,.3);
+      border-radius: 22px; padding: 40px 30px; text-align: center;
+      backdrop-filter: blur(10px);
+      min-height: 320px;
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+    }
+    .result .placeholder { color: #8b95ad; font-size: .9rem; line-height: 1.7; }
+    .result .price-label { font-size: .8rem; letter-spacing: 2px; text-transform: uppercase; color: #9aa5bd; margin-bottom: 10px; }
+    .result .price {
+      font-family: 'Playfair Display', serif; font-size: clamp(2.4rem, 6vw, 3.4rem); font-weight: 900;
+      background: linear-gradient(90deg, #7dd3fc, #e0e7ff);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .result .hint { margin-top: 14px; font-size: .78rem; color: #8b95ad; }
+    .result .spinner {
+      width: 44px; height: 44px; border-radius: 50%;
+      border: 3px solid rgba(125,211,252,.2); border-top-color: #7dd3fc;
+      animation: spin .8s linear infinite; margin-bottom: 18px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .result.reveal .price { animation: pop .5s ease; }
+    @keyframes pop { from { transform: scale(.8); opacity: 0;} to { transform: scale(1); opacity: 1;} }
+    .error-msg { color: #fca5a5; font-size: .85rem; margin-top: 14px; display: none; }
+
+    footer { text-align: center; padding: 26px; font-size: .8rem; color: #5b6579; position: relative; z-index: 1; }
+  </style>
+</head>
+<body>
+  <div class="bg-glow"></div>
+
+  <nav class="nav">
+    <a class="logo" href="/">Diamond<span>Pricer</span></a>
+    <a class="back" href="/">&larr; Back to home</a>
+  </nav>
+
+  <main class="page">
+    <div class="page-head">
+      <div class="badge">Price Estimator</div>
+      <h1>Describe the diamond</h1>
+      <p>Fill in the gem's attributes — the model does the rest.</p>
+    </div>
+
+    <div class="layout">
+      <section class="panel">
+        <div class="panel-title">Diamond Attributes</div>
+        <form id="predictForm" novalidate>
+          <div class="grid">
+            <div class="full">
+              <label for="carat">Carat Weight <b id="caratVal">1.00</b> ct</label>
+              <div class="carat-wrap">
+                <input type="range" id="caratRange" min="0.2" max="5.0" step="0.01" value="1.0">
+                <input type="number" id="carat" name="carat" class="carat-num" min="0.2" max="5" step="0.01" value="1.00" required>
+              </div>
+            </div>
+
+            <div>
+              <label for="cut">Cut</label>
+              <select id="cut" name="cut">
+                <option value="Fair">Fair</option>
+                <option value="Good">Good</option>
+                <option value="Very Good" selected>Very Good</option>
+                <option value="Premium">Premium</option>
+                <option value="Ideal">Ideal</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="color">Color</label>
+              <select id="color" name="color">
+                <option value="D">D (best)</option>
+                <option value="E">E</option>
+                <option value="F">F</option>
+                <option value="G" selected>G</option>
+                <option value="H">H</option>
+                <option value="I">I</option>
+                <option value="J">J (worst)</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="clarity">Clarity</label>
+              <select id="clarity" name="clarity">
+                <option value="I1">I1 (worst)</option>
+                <option value="SI2">SI2</option>
+                <option value="SI1">SI1</option>
+                <option value="VS2">VS2</option>
+                <option value="VS1" selected>VS1</option>
+                <option value="VVS2">VVS2</option>
+                <option value="VVS1">VVS1</option>
+                <option value="IF">IF (best)</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="depth">Depth (%)</label>
+              <input type="number" id="depth" name="depth" min="40" max="80" step="0.1" placeholder="e.g. 61.5" value="61.5" required>
+            </div>
+
+            <div>
+              <label for="table">Table (%)</label>
+              <input type="number" id="table" name="table" min="40" max="100" step="0.1" placeholder="e.g. 55" value="55" required>
+            </div>
+
+            <div>
+              <label for="x">Length X (mm)</label>
+              <input type="number" id="x" name="x" min="0" step="0.01" placeholder="e.g. 6.5" value="6.5" required>
+            </div>
+
+            <div>
+              <label for="y">Width Y (mm)</label>
+              <input type="number" id="y" name="y" min="0" step="0.01" placeholder="e.g. 6.4" value="6.4" required>
+            </div>
+
+            <div class="full">
+              <label for="z">Depth Z (mm)</label>
+              <input type="number" id="z" name="z" min="0" step="0.01" placeholder="e.g. 4.0" value="4.0" required>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button type="submit" class="btn btn-predict" id="predictBtn">Predict Price</button>
+            <button type="button" class="btn btn-reset" id="resetBtn">Reset</button>
+          </div>
+          <div class="error-msg" id="errorMsg"></div>
+        </form>
+      </section>
+
+      <aside class="result" id="resultPanel">
+        <div class="placeholder" id="resultPlaceholder">
+          &#128142;<br><br>
+          Your estimate will appear here.<br>Adjust the attributes and hit predict.
+        </div>
+        <div id="resultContent" style="display:none; width:100%;">
+          <div class="spinner" id="spinner" style="display:none;"></div>
+          <div class="price-label">Estimated Price</div>
+          <div class="price" id="priceValue">$0</div>
+          <div class="hint">CatBoost model &middot; trained on 53,940 diamonds</div>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <footer>Diamond Price Prediction &middot; Estimates are indicative only</footer>
+
+  <script>
+    const form = document.getElementById('predictForm');
+    const btn = document.getElementById('predictBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const resultPanel = document.getElementById('resultPanel');
+    const placeholder = document.getElementById('resultPlaceholder');
+    const resultContent = document.getElementById('resultContent');
+    const spinner = document.getElementById('spinner');
+    const priceValue = document.getElementById('priceValue');
+    const errorMsg = document.getElementById('errorMsg');
+    const caratRange = document.getElementById('caratRange');
+    const caratNum = document.getElementById('carat');
+    const caratVal = document.getElementById('caratVal');
+
+    function syncCarat(src) {
+      const v = parseFloat(src.value);
+      if (src === caratRange) caratNum.value = v.toFixed(2);
+      else caratRange.value = v;
+      caratVal.textContent = v.toFixed(2);
+      const pct = ((v - 0.2) / (5.0 - 0.2)) * 100;
+      caratRange.style.setProperty('--fill', pct + '%');
+    }
+    caratRange.addEventListener('input', () => syncCarat(caratRange));
+    caratNum.addEventListener('input', () => syncCarat(caratNum));
+    syncCarat(caratRange);
+
+    function countUp(el, target, duration = 900) {
+      const start = performance.now();
+      function tick(now) {
+        const p = Math.min((now - start) / duration, 1);
+        const eased = 1 - Math.pow(1 - p, 3);
+        el.textContent = '$' + Math.round(target * eased).toLocaleString('en-US');
+        if (p < 1) requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorMsg.style.display = 'none';
+
+      const payload = {
+        carat: parseFloat(caratNum.value),
+        cut: document.getElementById('cut').value,
+        color: document.getElementById('color').value,
+        clarity: document.getElementById('clarity').value,
+        depth: parseFloat(document.getElementById('depth').value),
+        table: parseFloat(document.getElementById('table').value),
+        x: parseFloat(document.getElementById('x').value),
+        y: parseFloat(document.getElementById('y').value),
+        z: parseFloat(document.getElementById('z').value),
+      };
+      const numeric = [payload.carat, payload.depth, payload.table, payload.x, payload.y, payload.z];
+      if (numeric.some(v => isNaN(v))) {
+        errorMsg.textContent = 'Please fill in all numeric fields with valid numbers.';
+        errorMsg.style.display = 'block';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Predicting…';
+      placeholder.style.display = 'none';
+      resultContent.style.display = 'block';
+      spinner.style.display = 'block';
+      resultPanel.classList.remove('reveal');
+
+      try {
+        const res = await fetch('/api/predict', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error('Prediction failed');
+        const data = await res.json();
+        spinner.style.display = 'none';
+        countUp(priceValue, data.prediction);
+        resultPanel.classList.add('reveal');
+      } catch (err) {
+        spinner.style.display = 'none';
+        placeholder.style.display = 'block';
+        resultContent.style.display = 'none';
+        errorMsg.textContent = 'Something went wrong. Please check your inputs and try again.';
+        errorMsg.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Predict Price';
+      }
+    });
+
+    resetBtn.addEventListener('click', () => {
+      form.reset();
+      syncCarat(caratRange);
+      placeholder.style.display = 'block';
+      resultContent.style.display = 'none';
+      errorMsg.style.display = 'none';
+    });
+  </script>
+</body>
+</html>
